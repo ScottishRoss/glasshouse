@@ -84,6 +84,10 @@ var homeModule = null;
 var clockModule = null;
 /** @type {typeof import('./home-picture')} */
 var homePictureModule = null;
+/** @type {typeof import('./releases')} */
+var releasesModule = null;
+/** @type {typeof import('./weather')} */
+var weatherModule = null;
 /** @type {typeof import('./screensavers')} */
 var screensaversModule = null;
 /** @type {typeof import('./updater')} */
@@ -1222,6 +1226,25 @@ function handleHomeRoute(req, res, u, pathname) {
   send(res, 404, JSON.stringify({ ok: false, error: 'not found' }));
 }
 
+/*
+ * Glasshouse Home's Latest releases row (lib/releases): the titles, from a
+ * cache TMDB is asked to refill a few times a day, and opening one in
+ * YouTube, which takes allowControl from the network as Home's tiles do.
+ */
+function handleReleasesRoute(req, res, pathname) {
+  function reply(r) { send(res, r && r.ok === false ? 400 : 200, JSON.stringify(r)); }
+  if (pathname === '/api/releases' && req.method === 'GET') {
+    return releasesModule.list(/** @type {any} */ (res).glasshouseLang, reply);
+  }
+  if (pathname === '/api/releases/open' && req.method === 'POST') {
+    if (!config.allowControl && !fromTV(req)) {
+      return send(res, 403, JSON.stringify({ ok: false, error: msg('srv.controlsOff', 'controls disabled in config') }));
+    }
+    return readJsonBody(req, res, function (body) { releasesModule.open(body && body.id, reply); });
+  }
+  send(res, 404, JSON.stringify({ ok: false, error: 'not found' }));
+}
+
 function handleRequest(req, res) {
   var u = parseUrl(req.url);
   var pathname = u.pathname;
@@ -1800,6 +1823,17 @@ function handleRequest(req, res) {
     if (homeModule) return handleHomeRoute(req, res, u, pathname);
   }
 
+  if (pathname === '/api/releases' || pathname === '/api/releases/open') {
+    if (releasesModule) return handleReleasesRoute(req, res, pathname);
+  }
+
+  // Glasshouse Home's weather (lib/weather), from a cache refilled every quarter hour.
+  if (pathname === '/api/weather' && req.method === 'GET' && weatherModule) {
+    return weatherModule.current(/** @type {any} */ (res).glasshouseLang, function (r) {
+      send(res, r && r.ok === false ? 502 : 200, JSON.stringify(r));
+    });
+  }
+
   if (pathname === '/api/quickaccess' && req.method === 'POST') {
     if (!config.allowControl) {
       return send(res, 403, JSON.stringify({ ok: false, error: msg('srv.controlsOff', 'controls disabled in config') }));
@@ -2036,6 +2070,8 @@ function init(opts) {
   if (opts.home) homeModule = opts.home;
   if (opts.clock) clockModule = opts.clock;
   if (opts.homePicture) homePictureModule = opts.homePicture;
+  if (opts.releases) releasesModule = opts.releases;
+  if (opts.weather) weatherModule = opts.weather;
   if (opts.screensavers) screensaversModule = opts.screensavers;
   if (opts.updater) updaterModule = opts.updater;
   if (opts.logs) logsModule = opts.logs;

@@ -9,7 +9,7 @@
  *   - Glasshouse Home:        http://localhost:8080/assets/home.html
  *
  * Usage:
- *   node scripts/emulate-tv.js [--port 8080] [--model c2|b8|c3|cx|c1] [--webos 6.5.3] [--home on|off] [--open]
+ *   node scripts/emulate-tv.js [--port 8080] [--model c2|b8|c3|cx|c1] [--webos 6.5.3] [--home on|off] [--tmdb-key <key>] [--weather <place[,CC]>] [--open]
  *
  * --webos reports another webOS version on the chosen model, to see how the
  * dashboards treat a version no profile covers.
@@ -32,12 +32,16 @@ let model = 'c2';
 let autoOpen = false;
 let webosOverride = null;
 let homeOn = null;
+let tmdbKey = '';
+let weatherPlace = '';
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--port' && args[i + 1]) { port = parseInt(args[++i], 10); }
   else if (args[i] === '--model' && args[i + 1]) { model = args[++i].toLowerCase(); }
   else if (args[i] === '--webos' && args[i + 1]) { webosOverride = args[++i]; }
   else if (args[i] === '--home' && /^(on|off)$/.test(args[i + 1] || '')) { homeOn = args[++i] === 'on'; }
+  else if (args[i] === '--tmdb-key' && args[i + 1]) { tmdbKey = args[++i]; }
+  else if (args[i] === '--weather' && args[i + 1]) { weatherPlace = args[++i]; }
   else if (args[i] === '--open') { autoOpen = true; }
   else if (args[i] === '--help' || args[i] === '-h') {
     console.log('Usage: node scripts/emulate-tv.js [options]');
@@ -46,6 +50,8 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --model <c2|b8|c3|cx|c1> TV profile to simulate (default: c2)');
     console.log('  --webos <version>  webOS version to report instead of the profile\'s, e.g. 6.5.3');
     console.log('  --home <on|off>    start with Glasshouse Home switched on or off (default: on from webOS 7)');
+    console.log('  --tmdb-key <key>   TMDB API key (v3), for Glasshouse Home\'s Latest releases row');
+    console.log('  --weather <place>  place for Glasshouse Home\'s weather, with a country code after a comma: Sandbach,GB');
     console.log('  --open             Automatically open the dashboard in browser');
     process.exit(0);
   }
@@ -176,6 +182,17 @@ async function main() {
     fs.writeFileSync(path.join(root, 'var/luna/preferences/paneltype_oled'), '');
   }
 
+  /*
+   * The server looks for curl under /usr, which the emulator moves into its
+   * own root, so it finds none on a Mac, which has no /bin/curl beside it.
+   * With a TMDB key or a place for the weather, this computer's curl stands
+   * in that root, and the server runs it at its real path.
+   */
+  if ((tmdbKey || weatherPlace) && fs.existsSync('/usr/bin/curl')) {
+    fs.mkdirSync(path.join(root, 'usr/bin'), { recursive: true });
+    fs.symlinkSync('/usr/bin/curl', path.join(root, 'usr/bin/curl'));
+  }
+
   // Create mock snapshots (empty 1x1 jpg/png placeholders)
   const dummyJpg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
   fs.writeFileSync(path.join(root, 'tmp/snapshots/netflix/snap.jpg'), dummyJpg);
@@ -205,7 +222,11 @@ async function main() {
     allowControl: true,
     allowPower: true,
     allowExperimentalHome: true,
-    token: ''
+    token: '',
+    // Latest releases and the weather ask the real TMDB and Open-Meteo,
+    // through this computer's curl.
+    releases: { tmdbKey: tmdbKey, region: 'GB' },
+    weather: { place: weatherPlace.replace(/\s*,\s*[A-Za-z]{2}$/, ''), country: (/,\s*([A-Za-z]{2})$/.exec(weatherPlace) || [])[1] || '' }
   }, null, 2));
 
   // Glasshouse Home starts switched on where main supports it, webOS 7 and
