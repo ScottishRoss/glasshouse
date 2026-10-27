@@ -7,7 +7,7 @@
 
 ## What is on screen
 
-Glasshouse Home displays a clock and date (following the TV's 12-hour or 24-hour time setting), the last active source or app, and up to four rows (any row with no visible items is automatically hidden):
+Glasshouse Home displays a clock and date (following the TV's 12-hour or 24-hour time setting), the last active source or app, the [weather](#weather) where a place is set, and up to four rows (any row with no visible items is automatically hidden):
 
 <div class="grid cards" markdown>
 
@@ -108,6 +108,19 @@ It lists up to 20 films and series released or first aired in the last 60 days a
 **Down** from Apps reaches the row and **Up** goes back; left and right move along it, as in every row, and the pointer and wheel scroll it. **OK** opens YouTube searching for the title's trailer: LG's YouTube, or [YouTube AdFree](https://github.com/webosbrew/youtube-webos), which installs in its place. On a TV without either, **OK** opens [Search](#search) for the title where Search is switched on.
 
 The row is not part of the layout: it is not moved or hidden while arranging, and stays below Apps. Where the rows together are taller than the screen, as with four channels added, moving onto a row below it moves the rows up over the clock until the row is in view.
+
+## Weather
+
+> [!NOTE]
+> **Asks Open-Meteo:** The weather comes from [Open-Meteo](https://open-meteo.com/), which needs no key, for the place set in `config.json`. Without one it is left out and nothing is asked.
+
+A place in `config.json` adds the weather to the top right of Glasshouse Home: on the same three lines as **Last watched**: what the sky is doing, an icon with the temperature, and today's high and low.
+
+```json
+{ "weather": { "place": "Sandbach", "country": "GB" } }
+```
+
+`place` is looked up by name; `country`, a two-letter code, picks it among places of the same name. `latitude` and `longitude` in its place need no lookup, and `place` then only names them. `"units": "fahrenheit"` gives °F; Celsius is the default. The server asks Open-Meteo at most every 15 minutes, keeps a reading through a failure until it is three hours old, and then leaves the weather out until it answers again. With [Picture details](#home-customisation) on, it follows the plate, and **Last watched** narrows to make room for both.
 
 ## Wallpapers
 

@@ -62,6 +62,17 @@ body{font-family:'Manrope',sans-serif;color:#ece7df;-webkit-font-smoothing:antia
    smaller type on the title's baseline. */
 #plate{-webkit-flex:0 0 auto;flex:0 0 auto;max-width:640px;margin-left:56px;text-align:right;padding-bottom:2px;white-space:nowrap}
 #plate.none{display:none}
+/* The weather: the strip's last column, right-aligned, on the source's three
+   lines: what the sky is doing, the temperature at the title's size with its
+   icon, and today's range. A rule sets it off from the plate or the source. */
+#weather{-webkit-flex:0 0 auto;flex:0 0 auto;margin-left:32px;padding:0 0 2px 24px;border-left:1px solid #2a2825;text-align:right;white-space:nowrap}
+#weather.none{display:none}
+#wxCond{font-size:23px;height:32px;line-height:32px;color:#a39d93}
+#wxNow{display:-webkit-flex;display:flex;-webkit-justify-content:flex-end;justify-content:flex-end;-webkit-align-items:center;align-items:center;
+  height:70px;margin:8px 0 12px}
+#wxNow svg{display:block;width:54px;height:54px;margin-right:18px}
+#wxTemp{font-family:'Outfit',sans-serif;font-size:70px;line-height:70px;font-weight:400;letter-spacing:-1px}
+#wxRange{font-size:26px;height:36px;line-height:36px;color:#a39d93}
 #plSig{font-size:23px;height:32px;line-height:32px;color:#a39d93}
 #plSig span+span{margin-left:22px}
 #plMode{font-family:'Outfit',sans-serif;font-size:52px;height:70px;line-height:70px;font-weight:400;letter-spacing:-.5px;margin:15px 0 5px;
@@ -141,7 +152,8 @@ body{font-family:'Manrope',sans-serif;color:#ece7df;-webkit-font-smoothing:antia
 
 /* Latest releases: a poster, with the title, its kind and year, and TMDB's
    score beside it, as tall as a channel's tile. The title takes two lines. */
-.rel{width:380px;height:176px;padding:13px;display:-webkit-flex;display:flex}
+/* Inset as Inputs and Channels are, so the poster lines up with their text. */
+.rel{width:380px;height:176px;padding:13px 20px;display:-webkit-flex;display:flex}
 .rel .poster{position:relative;-webkit-flex:0 0 auto;flex:0 0 auto;width:100px;height:150px;border-radius:4px;overflow:hidden;background:#141310}
 .rel .poster img{display:block;width:100%;height:100%;object-fit:cover}
 .rel .poster .mono{position:absolute;left:0;top:0;right:0;bottom:0;text-align:center;line-height:150px;
@@ -346,6 +358,11 @@ html.faded #stage{opacity:0}
       <div id="plSig"></div>
       <div id="plMode"></div>
       <div id="plStrip"></div>
+    </div>
+    <div id="weather" class="none">
+      <div id="wxCond"></div>
+      <div id="wxNow"><span id="wxIcon"></span><span id="wxTemp"></span></div>
+      <div id="wxRange"></div>
     </div>
   </section>
 
@@ -1171,6 +1188,78 @@ html.faded #stage{opacity:0}
         '</b>' + esc(p.light) + '</div>'
       : '';
     $('plate').className = '';
+  }
+
+  // ---------------------------------------------------------------- weather
+
+  /*
+   * Now and today's range at the place config.json names, from Open-Meteo
+   * through the server (lib/weather). Left out without a place, or once the
+   * last reading is three hours old.
+   */
+  var WEATHER_MS = 10 * 60000;
+  // Line icons on a 24 unit grid. A cloud with rain, snow or a bolt under it
+  // sits higher, by RAISE.
+  var CLOUD = 'M6.5 19h11a4.5 4.5 0 0 0 .6-8.96A6 6 0 0 0 6.4 11.1 4 4 0 0 0 6.5 19z';
+  var RAISE = 'translate(0 -3)';
+  var SKY = {
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    moon: '<path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/>',
+    sunCloud: '<path d="M8 3v1.5M3 8h1.5M4.5 4.5l1 1M11.5 4.5l-1 1M5.2 10.6A3.2 3.2 0 1 1 10.9 7"/><path d="M8.5 20h9a4 4 0 0 0 .5-7.97A5.2 5.2 0 0 0 8.2 13a3.5 3.5 0 0 0 .3 7z"/>',
+    moonCloud: '<path d="M11.6 6.2A4.6 4.6 0 0 1 5.2 11 4.6 4.6 0 0 0 9.3 3.6"/><path d="M8.5 20h9a4 4 0 0 0 .5-7.97A5.2 5.2 0 0 0 8.2 13a3.5 3.5 0 0 0 .3 7z"/>',
+    cloud: '<path d="' + CLOUD + '"/>',
+    fog: '<path d="M4 9h16M6 13h12M4 17h16"/>',
+    rain: '<path transform="' + RAISE + '" d="' + CLOUD + '"/><path d="M8.5 19l-1 2.5M12.5 19l-1 2.5M16.5 19l-1 2.5"/>',
+    snow: '<path transform="' + RAISE + '" d="' + CLOUD + '"/><path d="M8 20h.01M12 19h.01M16 20h.01M10 22.5h.01M14 22.5h.01" stroke-width="2.4"/>',
+    storm: '<path transform="' + RAISE + '" d="' + CLOUD + '"/><path d="M12.5 17l-2 3.5h3l-2 3"/>'
+  };
+
+  // WMO weather interpretation codes, as Open-Meteo gives them: [words, icon].
+  function sky(code, day) {
+    switch (code) {
+      case 0: return day ? [t('home.weather.sunny', 'Sunny'), 'sun'] : [t('home.weather.clear', 'Clear'), 'moon'];
+      case 1: return [t('home.weather.mainlyClear', 'Mainly clear'), day ? 'sunCloud' : 'moonCloud'];
+      case 2: return [t('home.weather.partlyCloudy', 'Partly cloudy'), day ? 'sunCloud' : 'moonCloud'];
+      case 3: return [t('home.weather.overcast', 'Overcast'), 'cloud'];
+      case 45: case 48: return [t('home.weather.fog', 'Fog'), 'fog'];
+      case 51: case 53: case 55: return [t('home.weather.drizzle', 'Drizzle'), 'rain'];
+      case 56: case 57: return [t('home.weather.freezingDrizzle', 'Freezing drizzle'), 'rain'];
+      case 61: return [t('home.weather.lightRain', 'Light rain'), 'rain'];
+      case 63: return [t('home.weather.rain', 'Rain'), 'rain'];
+      case 65: return [t('home.weather.heavyRain', 'Heavy rain'), 'rain'];
+      case 66: case 67: return [t('home.weather.freezingRain', 'Freezing rain'), 'rain'];
+      case 71: return [t('home.weather.lightSnow', 'Light snow'), 'snow'];
+      case 73: case 77: return [t('home.weather.snow', 'Snow'), 'snow'];
+      case 75: return [t('home.weather.heavySnow', 'Heavy snow'), 'snow'];
+      case 80: case 81: return [t('home.weather.showers', 'Showers'), 'rain'];
+      case 82: return [t('home.weather.heavyShowers', 'Heavy showers'), 'rain'];
+      case 85: case 86: return [t('home.weather.snowShowers', 'Snow showers'), 'snow'];
+      case 95: return [t('home.weather.thunder', 'Thunderstorm'), 'storm'];
+      case 96: case 99: return [t('home.weather.thunderHail', 'Thunderstorm with hail'), 'storm'];
+    }
+    return ['', 'cloud'];
+  }
+
+  var weatherShown = '';
+  function refreshWeather() {
+    getJson('/api/weather', function (w) {
+      if (!w || !w.ok) {
+        // A failure keeps a reading until the server says it is too old.
+        if (w || !weatherShown) { weatherShown = ''; $('weather').className = 'none'; }
+        return;
+      }
+      var look = sky(w.code, w.day);
+      var key = [w.temperature, w.code, w.day, w.high, w.low].join('|');
+      if (key === weatherShown) return;
+      weatherShown = key;
+      $('wxIcon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        SKY[look[1]] + '</svg>';
+      $('wxTemp').textContent = t('home.weather.temperature', '{t}\u00b0', { t: w.temperature });
+      $('wxCond').textContent = look[0];
+      $('wxRange').textContent = typeof w.high === 'number' && typeof w.low === 'number'
+        ? t('home.weather.range', '{high}\u00b0 / {low}\u00b0', { high: w.high, low: w.low }) : '';
+      $('weather').className = '';
+    });
   }
 
   // ---------------------------------------------------------------- actions
@@ -2447,6 +2536,7 @@ html.faded #stage{opacity:0}
     }
     if (state.arranging) setArranging(false);
     beat();
+    refreshWeather();
     if (!dark) return load();
     // In once both the rows and what was last on have come back, or before long.
     var waiting = 2, shown = false;
@@ -2489,7 +2579,9 @@ html.faded #stage{opacity:0}
   updateWall();
   beat();
   load();
+  refreshWeather();
   setInterval(beat, BEAT_MS);
+  setInterval(function () { if (!document.hidden) refreshWeather(); }, WEATHER_MS);
   setInterval(function () { renderNow(); updateWall(); if (!document.hidden) refreshPicture(); }, 15000);
   setInterval(function () { refreshNow(); refreshGuide(); }, 60000);
   setInterval(function () { if (!state.arranging) load(); }, 5 * 60000);

@@ -181,10 +181,10 @@ Use `NO_MKDOCS_2_WARNING=1 mkdocs serve` to preview the site locally at `http://
 
 ```bash
 npm run emulate
-node scripts/emulate-tv.js [--port 8080] [--model c2|b8|c3|cx|c1] [--webos 6.5.3] [--home on|off] [--open]
+node scripts/emulate-tv.js [--port 8080] [--model c2|b8|c3|cx|c1] [--webos 6.5.3] [--home on|off] [--tmdb-key <key>] [--weather <place[,CC]>] [--open]
 ```
 
-The models are a C2 (webOS 9.2), a B8 (webOS 4.4), a C3 (webOS 10.3), a CX (webOS 5.6) and a C1 (webOS 6.5). `--webos` reports another version on the chosen model, for a version no profile covers. Glasshouse Home starts switched on from webOS 7, where main supports it; `--home on` starts it switched on elsewhere, for a branch that adds a version. Switching it in the emulator changes nothing, since nothing is mounted. The pages run in the computer's browser, not the TV's, so the emulator does not show what an older TV's browser gets wrong.
+The models are a C2 (webOS 9.2), a B8 (webOS 4.4), a C3 (webOS 10.3), a CX (webOS 5.6) and a C1 (webOS 6.5). `--webos` reports another version on the chosen model, for a version no profile covers. Glasshouse Home starts switched on from webOS 7, where main supports it; `--home on` starts it switched on elsewhere, for a branch that adds a version. Switching it in the emulator changes nothing, since nothing is mounted. The pages run in the computer's browser, not the TV's, so the emulator does not show what an older TV's browser gets wrong. `--tmdb-key` fills Latest releases from the real TMDB, and `--weather Sandbach,GB` the weather from the real Open-Meteo, both through the computer's curl; OK on a release opens nothing there, since the launch is mocked.
 
 
 Home recovery checks cover a switch-off cut short, failed layout restoration and its retry, failed migration without losing the snapshot or removing the old app, closing the old app when it is left running in the background, and a missing first heartbeat when Home already has the foreground id. A refused device tile is followed by a remote input switch to check that Last opened still records the whole input. Remote-key checks cover clearing the startup notice on escape and retrying a configd write after the local map was saved. Browser checks cover pending/failed layout edits, each row's Order on the view, the Home tab and the TV app, edits attempted during an Order save and refresh, keeping unsaved moves when Order changes, clicking Order while a tile is held, first-catalogue failure, delayed readiness, the Home tab left out where Glasshouse Home is not offered, and the Apps tab's notes while it is on.
@@ -236,6 +236,15 @@ on one request, a failure keeping the titles fetched with the key kept out of
 the log and of the answer, and a 15-minute wait before asking again. Only a
 listed title opens, as a YouTube search, and without YouTube the answer says
 so; opening from the network takes `allowControl`.
+
+`test-weather.js` checks Glasshouse Home's weather: nothing asked of
+Open-Meteo without a place, a place searched once and taken from the
+configured country rather than first in the answer, coordinates needing no
+search, Fahrenheit asked for only when set, the reading and today's range
+rounded, the cache answering for 15 minutes, callers waiting on one request,
+a failure keeping a reading until it is three hours old with a five-minute
+wait before asking again, a place Open-Meteo does not know named in the
+error, and the route answering.
 
 The sideload route check forces an upload to abort before its file opens,
 then confirms that the eventual descriptor closes and the staging file is

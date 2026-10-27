@@ -70,14 +70,18 @@ var glasshouseHome = null;
 var homePicture = null;
 /** @type {typeof import('./lib/releases')} */
 var releases = null;
+/** @type {typeof import('./lib/weather')} */
+var weather = null;
 try {
   glasshouseHome = require('./lib/home');
   homePicture = require('./lib/home-picture');
   releases = require('./lib/releases');
+  weather = require('./lib/weather');
 } catch (e) {
   glasshouseHome = null;
   homePicture = null;
   releases = null;
+  weather = null;
   console.error('home: Glasshouse Home could not be loaded, running without it: ' + e.message);
 }
 var telemetry = require('./lib/telemetry');
@@ -215,6 +219,12 @@ var CONFIG = {
   // in `region`, from TMDB. Left out, and nothing fetched, without a TMDB
   // API key (v3). File-only.
   releases: { tmdbKey: '', region: 'GB' },
+
+  // Glasshouse Home's weather, from Open-Meteo, top right. Nothing is asked
+  // without a place: a name, with `country` to tell same-named places apart,
+  // or `latitude` and `longitude`. `units`: 'celsius' or 'fahrenheit'.
+  // File-only.
+  weather: { place: '', country: '', units: 'celsius' },
 
   // Hiding built-in system tiles is experimental: restarting the app manager
   // mid-boot can lock up the display engine on some TVs, leaving the picture
@@ -930,6 +940,7 @@ function appsChanged() {
 }
 
 if (releases) releases.init({ config: CONFIG, fetch: fetchLib, luna: luna });
+if (weather) weather.init({ config: CONFIG, fetch: fetchLib });
 
 routes.init({
   config: CONFIG,
@@ -962,6 +973,7 @@ routes.init({
   home: glasshouseHome,
   homePicture: homePicture,
   releases: releases,
+  weather: weather,
   screensavers: screensavers,
   updater: updater,
   tvApp: tvApp,
