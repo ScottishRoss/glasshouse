@@ -7,7 +7,7 @@
 
 ## What is on screen
 
-Glasshouse Home displays a clock and date (following the TV's 12-hour or 24-hour time setting), the last active source or app, and up to three rows (any row with no visible items is automatically hidden):
+Glasshouse Home displays a clock and date (following the TV's 12-hour or 24-hour time setting), the last active source or app, and up to four rows (any row with no visible items is automatically hidden):
 
 <div class="grid cards" markdown>
 
@@ -22,6 +22,12 @@ Glasshouse Home displays a clock and date (following the TV's 12-hour or 24-hour
     ---
 
     With the Magic Remote's pointer, hovering a tile focuses it and clicking opens it. Resting the pointer near either end of a row glides the row that way — faster the further out it points, with a soft arrow at the edge where there is more off-screen — gathering speed smoothly and braking into the last tile. The scroll wheel steps the hovered row one tile per notch, arrow keys continue from the tiles currently in view, and returning from an app preserves the focused tile and every row's scroll position.
+
+-   **Latest releases**
+
+    ---
+
+    Films and series new to streaming in the UK, from TMDB, below Apps: each with its poster, whether it is a film or a series, its year and TMDB's score. **OK** searches YouTube for its trailer. Shown only with a TMDB API key set; see [Latest releases](#latest-releases).
 
 -   **Inputs & HDMI-CEC devices**
 
@@ -85,6 +91,23 @@ Glasshouse Home displays a clock and date (following the TV's 12-hour or 24-hour
 When switched on under **Home** on the web dashboard or in the TV app's Home section, **Search** adds a mark in the left margin beside the rows: **Left** from the first tile of any row reaches it, and **Right** goes back. **OK** opens a search panel over the left of Glasshouse Home for films and series, typed on the TV's keyboard. While the keyboard is up the titles are single lines, with the icons of the apps that have them; once it closes each shows its poster, year, running time and apps. Editing the query clears the previous titles immediately. Up and down move between titles, left and right between apps, and OK opens the app at that title. A series opens at its start where the app allows: Prime Video and HBO Max at its first season, Disney+ and BBC iPlayer playing its first episode, Netflix at the series; Apple TV opens its latest episode. Titles only on apps the TV does not have are counted, not listed, and trailers, teasers and sneak peeks are never shown or opened. Back closes the keyboard, then the panel. Coming back from an app opened there within 30 minutes, without the TV having been switched off, finds the panel as it was left. Switched off, the mark goes and nothing typed leaves the TV.
 
 LG's search needs the TV online and LG's search server (`gb.nextlgsdp.com` on a TV in the UK) reachable. Where the ad blocker blocks that server, on **Everything** or through an uploaded hosts list, the mark is hidden on Glasshouse Home and the **Search** switch is greyed on both dashboards, with a note saying what blocks it. The switch keeps its setting, and search comes back when the blocker is set to **Ads & telemetry** or off.
+
+## Latest releases
+
+> [!NOTE]
+> **Asks TMDB:** The row is filled from [TMDB](https://www.themoviedb.org/)'s discover lists, with the TV's own API key. Without a key it is left out and nothing is asked. This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+A TMDB API key (the v3 key from TMDB's account settings) in `config.json` adds the row, below Apps:
+
+```json
+{ "releases": { "tmdbKey": "<API key>", "region": "GB" } }
+```
+
+It lists up to 20 films and series released or first aired in the last 60 days and streaming in `region` (`GB` unless set: a two-letter country code), on a subscription, free or with ads, the most popular first. The titles are in the language Glasshouse Home is shown in. The server asks TMDB at most every six hours, and after a failure keeps the titles it had and waits 15 minutes before asking again.
+
+**Down** from Apps reaches the row and **Up** goes back; left and right move along it, as in every row, and the pointer and wheel scroll it. **OK** opens YouTube searching for the title's trailer: LG's YouTube, or [YouTube AdFree](https://github.com/webosbrew/youtube-webos), which installs in its place. On a TV without either, **OK** opens [Search](#search) for the title where Search is switched on.
+
+The row is not part of the layout: it is not moved or hidden while arranging, and stays below Apps. Where the rows together are taller than the screen, as with four channels added, moving onto a row below it moves the rows up over the clock until the row is in view.
 
 ## Wallpapers
 

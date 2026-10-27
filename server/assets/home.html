@@ -78,6 +78,9 @@ body{font-family:'Manrope',sans-serif;color:#ece7df;-webkit-font-smoothing:antia
 #rows:before,#rows:after{content:"";-webkit-flex:1 1 0;flex:1 1 0}
 /* Along the bottom, as on LG's Home: no space below the rows. */
 .rows-bottom #rows:after{-webkit-flex:0 0 0;flex:0 0 0}
+/* Rows that run on below the screen move up to bring the one in focus into
+   view (placeRowsVertically), over the top strip, which fades. */
+.rows-up #now{opacity:0}
 .row{-webkit-flex:0 0 auto;flex:0 0 auto}
 .row.empty{display:none}
 .arranging .row.empty{display:block}
@@ -136,6 +139,20 @@ body{font-family:'Manrope',sans-serif;color:#ece7df;-webkit-font-smoothing:antia
 .ch.focus .bar i{background:#ece7df}
 .ch .next{font-size:17px;color:#6b665e;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+/* Latest releases: a poster, with the title, its kind and year, and TMDB's
+   score beside it, as tall as a channel's tile. The title takes two lines. */
+.rel{width:380px;height:176px;padding:13px;display:-webkit-flex;display:flex}
+.rel .poster{position:relative;-webkit-flex:0 0 auto;flex:0 0 auto;width:100px;height:150px;border-radius:4px;overflow:hidden;background:#141310}
+.rel .poster img{display:block;width:100%;height:100%;object-fit:cover}
+.rel .poster .mono{position:absolute;left:0;top:0;right:0;bottom:0;text-align:center;line-height:150px;
+  font-family:'Outfit',sans-serif;font-size:48px;font-weight:300;color:#6b665e}
+.rel .info{-webkit-flex:1 1 auto;flex:1 1 auto;min-width:0;margin-left:20px;padding-top:4px}
+.rel .nm{font-family:'Outfit',sans-serif;font-size:28px;line-height:32px;max-height:64px;font-weight:400;white-space:normal;overflow:hidden;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.rel .meta{font-size:20px;color:#a39d93;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rel .meta span+span{margin-left:16px}
+.rel .score{font-size:20px;color:#6b665e;margin-top:6px;white-space:nowrap}
+
 /* Arranging */
 .arranging .row h2{color:#ece7df}
 .row h2 .sort{display:none;margin-left:22px;font-style:normal;font-size:20px;color:#a39d93;padding:4px 14px;border-radius:5px;background:#141310;
@@ -175,6 +192,7 @@ body{font-family:'Manrope',sans-serif;color:#ece7df;-webkit-font-smoothing:antia
   -webkit-transition:-webkit-transform .32s cubic-bezier(.2,.7,.2,1),visibility 0s .32s;transition:transform .32s cubic-bezier(.2,.7,.2,1),visibility 0s .32s}
 .recents #recents{-webkit-transform:none;transform:none;visibility:visible;-webkit-transition-delay:0s;transition-delay:0s}
 #rows,#now{-webkit-transition:opacity .32s;transition:opacity .32s}
+#rows{-webkit-transition:opacity .32s,-webkit-transform .28s cubic-bezier(.2,.7,.2,1);transition:opacity .32s,transform .28s cubic-bezier(.2,.7,.2,1)}
 .recents #rows,.recents #now{opacity:.25}
 .recents #rows .tile.focus{outline-color:transparent;background:none}
 #recents .head{display:-webkit-flex;display:flex;-webkit-align-items:baseline;align-items:baseline;padding:0 112px;margin-bottom:18px}
@@ -304,7 +322,7 @@ html.fades.in #stage{-webkit-transition:opacity .3s ease-out;transition:opacity 
 html.faded #stage{opacity:0}
 
 @media (prefers-reduced-motion:reduce){
-  .track,#toast,.tile,#folder,#folderGrid,#hits,.hit,.chip,#finder,#rail,#rail svg,#ask,html.fades #stage{-webkit-transition:none;transition:none}
+  .track,#rows,#toast,.tile,#folder,#folderGrid,#hits,.hit,.chip,#finder,#rail,#rail svg,#ask,html.fades #stage{-webkit-transition:none;transition:none}
   #wall .layer{-webkit-animation:none;animation:none}
 }
 </style>
@@ -381,7 +399,8 @@ html.faded #stage{opacity:0}
   var ROW_TITLES = {
     app: t('home.row.apps', 'Apps'),
     dev: t('home.row.inputs', 'Inputs'),
-    ch: t('home.row.channels', 'Channels')
+    ch: t('home.row.channels', 'Channels'),
+    rel: t('home.row.releases', 'Latest releases')
   };
   var LG_HOME_TILE = 'lg-home';
   // The remote's keys as webOS reports them to a page.
@@ -397,6 +416,8 @@ html.faded #stage{opacity:0}
   var data = null;       // the catalogue: apps, devices, channels, order
   var layout = null;     // rows, order, sort, hidden, channels, hintSeen, picture, show*
   var guideData = {};
+  // Latest releases (lib/releases): TMDB's titles, as the server last had them.
+  var releases = { items: [] };
   var lastOn = { kind: null };
   // last: the tile focused last, which the bar's Hide or show acts on. rail:
   // the search mark in the left gutter has the focus.
@@ -513,6 +534,7 @@ html.faded #stage{opacity:0}
    * More apps tile at the end.
    */
   function items(kind) {
+    if (kind === 'rel') return releases.items;
     var out = [];
     (data.order[kind] || []).forEach(function (id) {
       var it = byId(kind, id);
@@ -536,12 +558,28 @@ html.faded #stage{opacity:0}
   // An input with nothing plugged in, where the layout leaves those out, as well
   // as any hidden. While arranging it shows, greyed out, so that it can still be moved.
   function leftOut(kind, it) { return kind === 'dev' && it.unused && layout.hideUnused === true && !state.arranging; }
-  function rowKey() { return layout.rows[state.row]; }
+  /*
+   * The rows as the view has them: the layout's, with Latest releases after
+   * Apps. That row is the view's own, not part of the layout the dashboards
+   * share, so it is not arranged and leaves while arranging; state.row is
+   * an index into this list.
+   */
+  function rowList() {
+    if (state.arranging || !releases.items.length) return layout.rows;
+    var at = layout.rows.indexOf('app') + 1;
+    return layout.rows.slice(0, at).concat(['rel'], layout.rows.slice(at));
+  }
+  function rowKey() { return rowList()[state.row]; }
+  // The focus stays on the same row as Latest releases comes or goes.
+  function keepRow(kind) {
+    var at = rowList().indexOf(kind);
+    state.row = at !== -1 ? at : Math.max(0, rowList().indexOf('app'));
+  }
   // A row with nothing to show is left out of the view, but not while arranging.
-  function shown(ri) { return state.arranging || items(layout.rows[ri]).length > 0; }
+  function shown(ri) { return state.arranging || items(rowList()[ri]).length > 0; }
   // The first shown row from ri on in direction dir, or ri when there is none.
   function nextShown(ri, dir) {
-    for (var i = ri; i >= 0 && i < layout.rows.length; i += dir) if (shown(i)) return i;
+    for (var i = ri; i >= 0 && i < rowList().length; i += dir) if (shown(i)) return i;
     return ri;
   }
   // -1, only while arranging, is the row's Order, left of its first tile.
@@ -570,6 +608,7 @@ html.faded #stage{opacity:0}
       return ports.length === 1 ? t('home.row.inputsNoteOne', 'Devices on HDMI {port}', { port: ports[0] })
         : t('home.row.inputsNote', 'Devices on {n} HDMI inputs', { n: ports.length });
     }
+    if (kind === 'rel') return t('home.row.releasesNote', 'New to stream, from TMDB');
     if (data.sources.channels === 0) return t('home.row.noTuner', 'This TV has no channels tuned');
     if (!list.length) return t('home.row.addChannels', 'Add channels in Glasshouse\u2019s Home settings');
     return t('home.row.channelsNote', '{n} added', { n: list.length });
@@ -580,7 +619,7 @@ html.faded #stage{opacity:0}
     var html = '';
     barWidths = [];
     if (!shown(state.row)) state.row = nextShown(0, 1);
-    layout.rows.forEach(function (kind, ri) {
+    rowList().forEach(function (kind, ri) {
       var list = items(kind);
       var tiles = '';
       list.forEach(function (it, i) { tiles += TILE[kind](it, i); });
@@ -598,6 +637,7 @@ html.faded #stage{opacity:0}
     if (changed) {
       $('rows').innerHTML = html;
       renderedRows = html;
+      posterFallbacks();
     }
     // A programme's progress is set in place, so the minute's refresh does
     // not rebuild the rows.
@@ -613,7 +653,45 @@ html.faded #stage{opacity:0}
       var active = document.querySelector('.row.active');
       if (active) scrollTrack(active, active.querySelector('.tile.focus'), !animating);
     }
+    if (!pointing) placeRowsVertically();
     if (folder.open) renderFolder();
+  }
+
+  // A poster TMDB no longer serves, or one blocked, leaves the title's initial.
+  function posterFallbacks() {
+    var imgs = $('rows').querySelectorAll('.rel .poster img');
+    for (var i = 0; i < imgs.length; i++) {
+      imgs[i].onerror = function () {
+        var span = document.createElement('span');
+        span.className = 'mono';
+        span.textContent = (this.parentNode.parentNode.querySelector('.nm').textContent || '').charAt(0);
+        this.parentNode.replaceChild(span, this);
+      };
+    }
+  }
+
+  /*
+   * Rows taller together than the space below the clock run on below the
+   * screen. Moved by the keys onto one of those, they all move up so that it
+   * is in view; the pointer's focus leaves them where they are, or a row
+   * moving under it would take the focus from the one it pointed at.
+   */
+  var rowsShift = 0;
+  function placeRowsVertically() {
+    var box = $('rows'), active = box.querySelector('.row.active');
+    if (!active) return;
+    var shift = Math.max(0, active.offsetTop + active.offsetHeight - box.clientHeight);
+    if (shift === rowsShift) return;
+    rowsShift = shift;
+    box.style.webkitTransform = box.style.transform = shift ? 'translateY(' + (-shift) + 'px)' : '';
+    stageClass();
+  }
+
+  // TMDB's score out of ten, with the decimal written as the page's language writes it.
+  function scoreText(score) {
+    var lang = (window.I18N && I18N.lang) ? I18N.lang() : 'en', text = score.toFixed(1);
+    try { text = score.toLocaleString(lang === 'en' ? undefined : lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }); } catch (e) {}
+    return t('home.releases.score', '{score} on TMDB', { score: text });
   }
   var renderedRows = '', barWidths = [];
 
@@ -671,6 +749,14 @@ html.faded #stage{opacity:0}
         if (shows[1]) body += '<div class="next">' + esc(hm(new Date(shows[1].start)) + ' ' + shows[1].title) + '</div>';
       }
       return '<div class="' + cls + '" data-c="' + i + '">' + body + hiddenLabel + '</div>';
+    },
+    rel: function (r, i) {
+      var meta = '<span>' + esc(r.kind === 'film' ? t('home.search.film', 'Film') : t('home.search.series', 'Series')) + '</span>' +
+        (r.year ? '<span>' + esc(r.year) + '</span>' : '');
+      var poster = r.poster ? '<img src="' + esc(r.poster) + '" alt="">' : '<span class="mono">' + esc(String(r.title).charAt(0)) + '</span>';
+      return '<div class="tile rel" data-c="' + i + '"><div class="poster">' + poster + '</div>' +
+        '<div class="info"><div class="nm">' + esc(r.title) + '</div><div class="meta">' + meta + '</div>' +
+        (typeof r.rating === 'number' ? '<div class="score">' + esc(scoreText(r.rating)) + '</div>' : '') + '</div></div>';
     }
   };
 
@@ -690,6 +776,7 @@ html.faded #stage{opacity:0}
       // stays where it was left.
       if (!noScroll && active) scrollTrack(rowEl, tiles[c], instant);
     }
+    if (!noScroll) placeRowsVertically();
     for (var b = 0; b < BAR.length; b++) $(BAR[b]).className = 'btn' + (state.bar === b ? ' focus' : '');
     $('rail').className = state.rail && !finder.open ? 'focus' : '';
     if (state.bar < 0) {
@@ -1173,6 +1260,7 @@ html.faded #stage{opacity:0}
     var kind = rowKey(), it = items(kind)[colOf(kind)];
     if (!it) return;
     if (it.folder) return openFolder();
+    if (kind === 'rel') return openRelease(it);
     fadeThenOpen(it.overlay === true, function (done) {
       postJson('/api/home/open', { kind: kind, id: it.id }, function (r) {
         done(!!(r && r.ok));
@@ -1195,7 +1283,7 @@ html.faded #stage{opacity:0}
     }
     if (dr) {
       var to = nextShown(state.row + dr, dr);
-      if (to >= 0 && to < layout.rows.length && shown(to)) state.row = to;
+      if (to >= 0 && to < rowList().length && shown(to)) state.row = to;
     }
     // Up and down from a row's Order go to the next row's.
     if (dr && onSort) state.col[rowKey()] = -1;
@@ -1214,7 +1302,8 @@ html.faded #stage{opacity:0}
   function stageClass() {
     $('stage').className = (state.arranging ? 'arranging' : '') + (recents.open ? ' recents' : '') +
       (finder.open ? ' finding' : '') + (finder.typing ? ' typing' : '') + (searchOn() ? '' : ' no-search') + (folder.open ? ' folder' : '') +
-      (layout && layout.showClock === false ? ' no-clock' : '') + (layout && layout.rowsBottom === true ? ' rows-bottom' : '');
+      (layout && layout.showClock === false ? ' no-clock' : '') + (layout && layout.rowsBottom === true ? ' rows-bottom' : '') +
+      (rowsShift ? ' rows-up' : '');
   }
 
   // ---------------------------------------------------------------- more apps
@@ -1789,6 +1878,7 @@ html.faded #stage{opacity:0}
     // The focus stays on the same item as hidden tiles appear or go.
     var kind = rowKey(), cur = items(kind)[colOf(kind)];
     state.arranging = on;
+    keepRow(kind);
     state.held = false;
     state.bar = -1;
     state.rail = false;
@@ -2049,7 +2139,9 @@ html.faded #stage{opacity:0}
     var rowEl = tile.parentNode;
     while (rowEl && !/\brow\b/.test(rowEl.className)) rowEl = rowEl.parentNode;
     if (!rowEl) return;
-    var r = +rowEl.getAttribute('data-row'), c = +tile.getAttribute('data-c'), kind = layout.rows[r];
+    // By the row's key: Latest releases arriving moves the rows below it along.
+    var kind = rowEl.getAttribute('data-key'), r = rowList().indexOf(kind), c = +tile.getAttribute('data-c');
+    if (r === -1) return;
     if (state.row !== r || colOf(kind) !== c || state.bar >= 0 || state.rail) {
       state.row = r; state.col[kind] = c; state.bar = -1; state.rail = false;
       applyFocus(false, true);
@@ -2221,6 +2313,7 @@ html.faded #stage{opacity:0}
         layout.searchHintSeen = true;
       }
       refreshGuide();
+      refreshReleases();
       if (cb) cb(true);
     });
     refreshNow(onNow);
@@ -2236,6 +2329,43 @@ html.faded #stage{opacity:0}
       }
       if (cb) cb();
     });
+  }
+
+  // The server keeps TMDB's answer for hours, so this is asked with every load.
+  function refreshReleases() {
+    getJson('/api/releases', function (r) {
+      // A failure with nothing fetched yet: the row stays as it was.
+      if (!r || !data || !layout) return;
+      var list = r.items || [], ids = list.map(function (x) { return x.id + x.title + x.rating + x.poster; }).join('|');
+      if (ids === releases.shown) return;
+      var kind = rowKey();
+      releases.items = list;
+      releases.shown = ids;
+      keepRow(kind);
+      if (!state.arranging) renderWhenStill();
+    });
+  }
+
+  /*
+   * OK on a release searches YouTube for it (lib/releases). On a TV without
+   * YouTube, Home's own search looks for the title where it is on.
+   */
+  function openRelease(it) {
+    fadeThenOpen(false, function (done) {
+      postJson('/api/releases/open', { id: it.id }, function (r, status, refused) {
+        done(!!(r && r.ok));
+        if (r && r.ok) return;
+        if (refused && refused.noApp && searchOn()) return searchFor(it.title);
+        toast(t('home.openFailed', 'That did not open'), refused && refused.error);
+      });
+    });
+  }
+
+  function searchFor(title) {
+    openSearch();
+    $('query').value = title;
+    finder.commit = true;
+    runSearch();
   }
 
   function refreshGuide() {

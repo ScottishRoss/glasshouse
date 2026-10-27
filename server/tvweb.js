@@ -68,12 +68,16 @@ var homeScreen = require('./lib/homescreen');
 var glasshouseHome = null;
 /** @type {typeof import('./lib/home-picture')} */
 var homePicture = null;
+/** @type {typeof import('./lib/releases')} */
+var releases = null;
 try {
   glasshouseHome = require('./lib/home');
   homePicture = require('./lib/home-picture');
+  releases = require('./lib/releases');
 } catch (e) {
   glasshouseHome = null;
   homePicture = null;
+  releases = null;
   console.error('home: Glasshouse Home could not be loaded, running without it: ' + e.message);
 }
 var telemetry = require('./lib/telemetry');
@@ -206,6 +210,11 @@ var CONFIG = {
   // Glasshouse Home is offered on webOS 9 and 10, where it has been tried.
   // This lets it be switched on on webOS 11 too, untried there. File-only.
   allowExperimentalHome: false,
+
+  // Glasshouse Home's Latest releases row: films and series new to streaming
+  // in `region`, from TMDB. Left out, and nothing fetched, without a TMDB
+  // API key (v3). File-only.
+  releases: { tmdbKey: '', region: 'GB' },
 
   // Hiding built-in system tiles is experimental: restarting the app manager
   // mid-boot can lock up the display engine on some TVs, leaving the picture
@@ -920,6 +929,8 @@ function appsChanged() {
   telemetry.refreshInstalledApps(function () { publishNow(); });
 }
 
+if (releases) releases.init({ config: CONFIG, fetch: fetchLib, luna: luna });
+
 routes.init({
   config: CONFIG,
   audio: audioCapabilities,
@@ -950,6 +961,7 @@ routes.init({
   homeScreen: homeScreen,
   home: glasshouseHome,
   homePicture: homePicture,
+  releases: releases,
   screensavers: screensavers,
   updater: updater,
   tvApp: tvApp,

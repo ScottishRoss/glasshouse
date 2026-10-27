@@ -227,6 +227,16 @@ cannot refill a closed panel, and switching search off removes its entry point.
 Home interaction fixtures mark both introductory hints as seen so hint saves
 do not count as layout edits.
 
+`test-releases.js` checks Glasshouse Home's Latest releases: nothing asked of
+TMDB without a key, the discover addresses for films and series in the
+region and language over the last 60 days, films and series together by
+popularity with a score only from five votes or more and a poster only where
+its path is a file name, the cache answering for six hours, callers waiting
+on one request, a failure keeping the titles fetched with the key kept out of
+the log and of the answer, and a 15-minute wait before asking again. Only a
+listed title opens, as a YouTube search, and without YouTube the answer says
+so; opening from the network takes `allowControl`.
+
 The sideload route check forces an upload to abort before its file opens,
 then confirms that the eventual descriptor closes and the staging file is
 removed. This catches Node 0.12's destroy-before-open behaviour without
